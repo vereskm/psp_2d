@@ -47,7 +47,14 @@ Contains parameters regarding the PML. See PML documentation for equations used.
 |problem.pml|order|positive integer|PML order|
 |problem.pml.reflection|positive scalar|-|reflection coefficient|
 
-#### `problem.geometry`
+#### `problem.geometry`, `problem.sources`,`problem.probes`
+
+These define the geometry, sources and probes used in the current simulation.
+See geometry.md, sources.md and probes.md.
+
+
+
+struct array with all types of the current system. See geometry.md 
 
 
 
