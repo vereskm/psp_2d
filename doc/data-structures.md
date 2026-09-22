@@ -53,9 +53,43 @@ These define the geometry, sources and probes used in the current simulation.
 See geometry.md, sources.md and probes.md.
 
 
+| Field | Type or options | Units | Meaning|
+|---|---|---|---|
+|problem.geometry|struct array|-|holds geometry elements|
+|problem.sources|struct array|-|holds source elements|
+|problem.probes|struct array|-|holds probe elements|
 
-struct array with all types of the current system. See geometry.md 
+
+### `training`
+
+This struct defines parameters used to collect snapshots
 
 
+| Field | Type or options | Units | Meaning|
+|---|---|---|---|
+|training.outputDir|"string"|-|Directory name to store snapshots|
+|training.deletePrevious|true or false|-|If set to true this will delete all snapshots in the training.outputDir|
+|training.wavelengthRange|double (2)|1/m|Range of frequencies to train|
+|training.frequenciesPerBin|integer|-|Number of frequency models to create|
+|training.randomSeed|integer|-|Seed for rng|
+|training.parameters|struct array|-|Holds the fields to train|
+
+
+#### `training.parameters`
+
+Array of structs specifying the DoF to collect snapshots for.
+Example:
+
+```
+training.parameters(1).device=2;
+training.parameters(1).field="er";
+training.parameters(1).range=[8.1,8.2];
+```
+
+| Field | Type or options | Units | Meaning|
+|---|---|---|---|
+|training.parameters(i).device|positive integer|-|Device ID|
+|training.parameters(i).field|"string"|-|Name of Field|
+|training.parameters(i).range|double (2)|-|Training range|
 
 
