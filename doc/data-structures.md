@@ -69,7 +69,7 @@ This struct defines parameters used to collect snapshots
 |---|---|---|---|
 |training.outputDir|"string"|-|Directory name to store snapshots|
 |training.deletePrevious|true or false|-|If set to true this will delete all snapshots in the training.outputDir|
-|training.wavelengthRange|double (2)|1/m|Range of frequencies to train|
+|training.wavelengthRange|double (2)|m|Range of frequencies to train|
 |training.frequenciesPerBin|integer|-|Number of frequency models to create|
 |training.randomSeed|integer|-|Seed for rng|
 |training.parameters|struct array|-|Holds the fields to train|
