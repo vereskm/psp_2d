@@ -1,0 +1,39 @@
+function [PODSolveTime,output,bin] = solvePOD(Data,wq,p,nr,nModes,pol)
+    assert(pol=="TE" || pol=="TM", ...
+        'pol must be "TE" or "TM".');
+    tic
+    edges = Data.wBinEdges;
+    bin = find( ...
+        wq >= edges(1:end-1) & ...
+        wq <= edges(2:end), ...
+        1,'first'); % get the first bin
+    if isempty(bin)
+        error("Frequency is outside the trained POD range.");
+    end
+    % Query = geometry parameters + frequency
+    q = [p {wq}];
+    if pol=="TE"
+        Avec = cellfun(@(F) F(q{:}), Data.InterpTE(bin).A);
+        bvec = cellfun(@(F) F(q{:}), Data.InterpTE(bin).b);
+    else
+        Avec = cellfun(@(F) F(q{:}), Data.InterpTM(bin).A);
+        bvec = cellfun(@(F) F(q{:}), Data.InterpTM(bin).b);
+    end
+    if nModes > nr
+        error("Requested %d POD modes, but only %d are available in bin %d.", ...
+            nModes,nr,bin);
+    end
+    Ar = reshape(Avec,nr,nr);
+    Ar=Ar(1:nModes,1:nModes);
+    br = reshape(bvec,nr,1);
+    br=br(1:nModes,1);
+    if any(~isfinite(Ar(:))) || any(~isfinite(br(:)))
+        error("POD interpolation returned nonfinite values in bin %d at w=%g rad/s. Rebuild the interpolation library with samples spanning every bin edge.", ...
+            bin,wq);
+    end
+    % Reduced solve
+    output = Ar\br;
+    PODSolveTime=toc;
+ 
+end
+

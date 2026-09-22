@@ -1,0 +1,66 @@
+function plotPML(settings,unit)
+
+if nargin < 2
+    unit = "m";
+end
+
+% Unit scaling
+switch unit
+    case "mm"
+        S = 1e-3;
+    case "um"
+        S = 1e-6;
+    case "nm"
+        S = 1e-9;
+    case "m"
+        S = 1;
+    otherwise
+        error("Unknown unit: %s",unit);
+end
+
+Lx   = settings.Lx/S;
+Ly   = settings.Ly/S;
+dPML = settings.dPML/S;
+
+hold on;
+
+% Appearance
+pmlColor = [0.7 0.7 0.7];
+alphaVal = 0.35;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Left PML
+patch([0 dPML dPML 0], ...
+      [0 0 Ly Ly], ...
+      pmlColor, ...
+      'FaceAlpha',alphaVal, ...
+      'EdgeColor','k', ...
+      'LineStyle','--');
+
+% Right PML
+patch([Lx-dPML Lx Lx Lx-dPML], ...
+      [0 0 Ly Ly], ...
+      pmlColor, ...
+      'FaceAlpha',alphaVal, ...
+      'EdgeColor','k', ...
+      'LineStyle','--');
+
+% Bottom PML
+patch([dPML Lx-dPML Lx-dPML dPML], ...
+      [0 0 dPML dPML], ...
+      pmlColor, ...
+      'FaceAlpha',alphaVal, ...
+      'EdgeColor','k', ...
+      'LineStyle','--');
+
+% Top PML
+patch([dPML Lx-dPML Lx-dPML dPML], ...
+      [Ly-dPML Ly-dPML Ly Ly], ...
+      pmlColor, ...
+      'FaceAlpha',alphaVal, ...
+      'EdgeColor','k', ...
+      'LineStyle','--');
+
+axis([0 Lx 0 Ly]);
+
+end

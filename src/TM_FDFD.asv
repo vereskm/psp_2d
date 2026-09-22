@@ -1,0 +1,138 @@
+% This is a finite difference code for FDFD
+function [A]=TM_FDFD(settings,w,e,sgmx,sgmy)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % COEFICIENTS
+    e0=8.8541878188E-12;
+    mu0=1.256637061E-6;
+    c0=1./sqrt(e0.*mu0);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Compute the number of grid points
+    Nx=settings.Nx; % number of points including boundaries
+    Ny=settings.Ny; % number of points including boundaries
+    % get interior points
+    NxI = Nx-2;
+    NyI = Ny-2;
+    N   = NxI*NyI;
+    % Compute grid points
+    dx=settings.Lx/(Nx-1);
+    dy=settings.Ly/(Ny-1);
+    % deal with the permitivity
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Get k0
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    k0=w/c0;
+    % CREATE THE PML
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    sx=1+1i.*sgmx./(w.*e0);
+    sxinv=1./sx;
+    sy=1+1i.*sgmy./(w.*e0);
+    syinv=1./sy;
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % create needed matricies for solver
+
+    % get permativities at average points for both Y and X
+
+    sxinvX=(sxinv(:,2:end)+sxinv(:,1:end-1))./2;
+    sxinvXS=sxinvX/dx^2; % scale by the differential
+    syinvY=(syinv(2:end,:)+syinv(1:end-1,:))./2;
+    syinvYS=syinvY/dy^2;
+    
+    sxCenter=sxinv(2:end-1,2:end-1);
+    syCenter = syinv(2:end-1,2:end-1);
+
+
+    aW = sxCenter .* sxinvXS(2:end-1,1:NxI);
+    aE = sxCenter .* sxinvXS(2:end-1,2:NxI+1);
+
+    aS = syCenter .* syinvYS(1:NyI,2:end-1);
+    aN = syCenter .* syinvYS(2:NyI+1,2:end-1);
+    eInterior = e(2:end-1,2:end-1);
+    aC = -(aW + aE + aS + aN) + k0^2*eInterior;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Column-major global indices
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[J,Igrid] = ndgrid(1:NyI,1:NxI);
+G = J + (Igrid-1)*NyI; % get global grid
+
+% Valid neighbor masks
+hasW = Igrid > 1;
+hasE = Igrid < NxI;
+hasS = J > 1;
+hasN = J < NyI;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Assemble sparse triplet arrays
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Assemble sparse triplet arrays
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+rows = [ ...
+    G(:);
+    G(hasW);
+    G(hasE);
+    G(hasS);
+    G(hasN)];
+
+cols = [ ...
+    G(:);
+    G(hasW)-NyI;
+    G(hasE)+NyI;
+    G(hasS)-1;
+    G(hasN)+1];
+
+data = [ ...
+    aC(:);
+    aW(hasW);
+    aE(hasE);
+    aS(hasS);
+    aN(hasN)];
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+A = sparse(rows,cols,data,N,N); 
+end
+
+
+function [Row,Col,Data]=CMDS(NyI,NxI)
+% This function computes the matrix data structures
+    IP=(NyI-2)*(NxI-2);% get interior points
+    snc=(NyI-2)*2+(NxI-2)*2; %sides without corners
+    c=4; % corners
+    sz=IP*5+snc*4+c*3;
+    Row=zeros(sz,1);
+    Col=zeros(sz,1);
+    Data=complex(zeros(sz,1));
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% All the rest of these functions are responsible for putting in the
+% neighbors
+function gI=MI(i,j,NyI)
+     gI=j+(i-1)*NyI; % j is the row, i is the column ( this is a little confusing so be warned!)
+end
+function [Row,Col,Data,I]=piN(i,j,r,eN,NyI,Row,Col,Data,I)
+    c=MI(i,j+1,NyI);
+    data=eN;
+     [Row,Col,Data,I]=assign(r,c,data,Row,Col,Data,I);
+end
+function [Row,Col,Data,I]=piS(i,j,r,eS,NyI,Row,Col,Data,I)
+    c=MI(i,j-1,NyI);
+    data=eS;
+     [Row,Col,Data,I]=assign(r,c,data,Row,Col,Data,I);
+end
+function [Row,Col,Data,I]=piE(i,j,r,eE,NyI,Row,Col,Data,I)
+    c=MI(i+1,j,NyI);
+    data=eE;
+    [Row,Col,Data,I]=assign(r,c,data,Row,Col,Data,I);
+end
+function [Row,Col,Data,I]=piW(i,j,r,eW,NyI,Row,Col,Data,I)
+    c=MI(i-1,j,NyI);
+    data=eW;
+    [Row,Col,Data,I]=assign(r,c,data,Row,Col,Data,I);  
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [Row,Col,Data,I]=assign(r,c,d,Row,Col,Data,I)
+    Row(I)=r;
+    Col(I)=c;
+    Data(I)=d;
+    I=I+1;
+end
+

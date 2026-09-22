@@ -1,0 +1,126 @@
+function []=genData(settings,G,wRange,Sources,TrainingParams)
+    e0=8.8541878188E-12;
+    mu0=1.256637061E-6;
+    c0=1./sqrt(e0.*mu0);
+    % G is a cell of structurs
+    Lx=settings.Lx;
+    Ly=settings.Ly;
+    Nx=settings.Nx;
+    seed=settings.seed;
+    Ny=settings.Ny;
+    nTrain=settings.nTrain;
+    pol=settings.pol;
+    x=linspace(0,Lx,Nx);
+    y=linspace(0,Ly,Ny);
+    [X,Y]=meshgrid(x,y);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% If you train you also need to store the matrice
+    numBin=settings.numBin;
+    % get the total number of features trained
+    nfeat=numel(TrainingParams); % the plus 1 includes the frequencies
+    wmin = min(wRange);
+    wmax = max(wRange);
+    wBinEdges=linspace(wmin,wmax,numBin+1);
+    rng(seed);
+    % Store the randomly sampled inputs
+    wSamples = zeros(nTrain,numBin);
+    parameterSamples = zeros(nTrain,nfeat,numBin);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if (pol=="TE")
+            OutputTE=cell(nTrain,numBin);
+    elseif (pol=="TM")
+            OutputTM=cell(nTrain,numBin);
+    elseif (pol=="both")
+            OutputTE=cell(nTrain,numBin);
+            OutputTM=cell(nTrain,numBin);
+    end
+    for gi=1:nTrain
+         Gref=G;
+         for i=1:nfeat
+                    d=TrainingParams(i).device;
+                    fieldname=TrainingParams(i).name;
+                    sR=TrainingParams(i).range(1);
+                    eR=TrainingParams(i).range(2);
+                    parameterValue=sR + (eR-sR)*rand();
+                    Gref(d).(fieldname)=parameterValue;
+                    parameterSamples(gi,i,b) = parameterValue;
+         end 
+    end
+    
+    for b=1:numBin
+            wl=wBinEdges(b);
+            wh=wBinEdges(b+1);
+        parfor gi=1:nTrain
+            Gref=G;
+            for i=1:nfeat
+                d=TrainingParams(i).device;
+                fieldname=TrainingParams(i).name;
+                sR=TrainingParams(i).range(1);
+                eR=TrainingParams(i).range(2);
+                parameterValue=sR + (eR-sR)*rand();
+                Gref(d).(fieldname)=parameterValue;
+                parameterSamples(gi,i,b) = parameterValue;
+            end 
+            wSample=wl + (wh-wl)*rand();
+            wSamples(gi,b) = wSample;
+            e=gen_e(settings,X,Y,Gref); % get the permativity
+            [sgmx,sgmy]=PML(settings,X,Y,e);
+            
+            fprintf( ...
+            "Solving training structure %d out of %d for bin %d out of %d\n", ...
+            gi,nTrain,b,numBin);
+                if pol=="TE" || pol=="both"
+                     [phi,beta]=MakeSource(e,wSample,X,Y,Sources,settings,"TE",sgmx,sgmy);
+                     ATE=TE_FDFD(settings,wSample,e,sgmx,sgmy);
+                     bTE=QAAQ(X,Y,ATE,phi,beta,Sources);
+                     %SOLVE
+                     H=ATE\bTE;
+                     OutputTE{gi,b}=H;
+                if pol=="TM" || pol=="both"
+                     [phi,beta]=MakeSource(e,wSample,X,Y,Sources,settings,"TM",sgmx,sgmy);
+                     ATM=TM_FDFD(settings,wSample,e,sgmx,sgmy);
+                     bTM=QAAQ(X,Y,ATM,phi,beta,Sources);
+                     % SOLVE
+                     E=ATM\bTM;
+                     OutputTM{gi,b}=E;
+                end
+        
+         end
+
+    end
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+outputDirectory = "./TrainingData";
+if ~isfolder(outputDirectory)
+    mkdir(outputDirectory);
+end
+dateString = string(datetime( ...
+    "now","Format","yyyy-MM-dd_HH-mm-ss"));
+baseName = string(seed) + "_Training_" + dateString;
+if pol == "TE"
+    save( ...
+        fullfile(outputDirectory,"TE_" + baseName + ".mat"), ...
+        "OutputTE","wSamples","parameterSamples", ...
+        "wBinEdges","TrainingParams","settings","-v7.3");
+elseif pol == "TM"
+    save( ...
+        fullfile(outputDirectory,"TM_" + baseName + ".mat"), ...
+        "OutputTM","wSamples","parameterSamples", ...
+        "wBinEdges","TrainingParams","settings","-v7.3");
+else
+    save( ...
+        fullfile(outputDirectory,"TE_" + baseName + ".mat"), ...
+        "OutputTE","wSamples","parameterSamples", ...
+        "wBinEdges","TrainingParams","settings","-v7.3");
+    save( ...
+        fullfile(outputDirectory,"TM_" + baseName + ".mat"), ...
+        "OutputTM","wSamples","parameterSamples", ...
+        "wBinEdges","TrainingParams","settings","-v7.3");
+end
+
+end
+
+
+
