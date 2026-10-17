@@ -21,10 +21,8 @@ Hold snapshot data metadata regarding its construction.
 
 | Field | Type or options | Units | Meaning|
 |---|---|---|---|
-|snapshots.wBinEdges|"TE" or "TM" |- |Selects the electromagnetic polarization used|
-|snapshots.wSamples|struct|-|Defines simulation domain|
-|problem.mesh|struct|-|Defines the discretization scheme|
-|problem.parameterSamples|struct|-|Defines PML properties|
-|problem.geometry|struct|-|Defines the geometry|
-|problem.sources|struct|-|Defines sources|
-|problem.probes|struct|-|Defines probes|
+|snapshots.wBinEdges|array (double) |Edges of frequency bins|
+|snapshots.wSamples|array: (nTrain,nBins)|-|Frequencies trained per bin|
+|snapshots.parameterSamples|array: (nTrain,nFeat,nBins)|-|holds the features trained for each snapshot|
+|snapshots.fields|cell array: (nTrain,nBins)|-|Holds the snapshots for each frequency bin|
+
