@@ -1,0 +1,17 @@
+function mask=inside(g,X,Y)
+    %THIS IS THE BEST WAY I COULD THINK TO DO THIS. I STILL DON"T LIKE HOW YOU
+    %HAVE TO EDIT THE getShapes file but OHHH WELLLL.
+    shapes = geometry.shapes.getShapes();
+    type = char(g.type);
+
+    % check to see if the shape is in the library
+    if ~isfield(shapes,type)
+        error("geometry:UnknownType", ...
+            "Unknown geometry type: %s",g.type);
+    end
+
+
+    insideFunction = shapes.(type);
+    mask = insideFunction(g,X,Y);
+
+end

@@ -1,0 +1,145 @@
+function MonteCarloR = runMonteCarlo(SolveSettings,I,fields,CenterValues,P,Nrand,Seed)
+    %RUNMONTECARLO Compare DNS and ROM for randomly perturbed geometries.
+    % I are the geometry indices;
+    % fields are there names
+    % centervalues are the center values to try
+    %P are the percentages in each direction
+    % Nrand is the total number of random tests
+    monteCarloTimer = tic;
+    fprintf('[Monte Carlo] Starting %d samples.\n',Nrand);
+    problemSample=SolveSettings.problem;
+    POD=SolveSettings.POD;
+    frequencies=SolveSettings.w;
+    nModes=SolveSettings.nModes;
+    MonteCarloR.Nrand=Nrand; % set the Nrand
+    MonteCarloR.fieldLSE = zeros(nModes,numel(frequencies),Nrand);
+
+    MonteCarloR.uROM = cell(nModes,1);
+  
+
+    % define the random seed
+    rng(Seed);
+    MonteCarloR.cpDNS=cell(Nrand,1);
+    MonteCarloR.cnDNS=cell(Nrand,1);
+    MonteCarloR.cpROM=cell(Nrand,1);
+    MonteCarloR.cnROM=cell(Nrand,1);
+    % Full interior fields: first index is sample, second is frequency.
+    MonteCarloR.uROM = cell(Nrand,1);
+    MonteCarloR.uDNS=cell(Nrand,1);
+    MonteCarloR.geometry=cell(Nrand,1);
+    MonteCarloR.gridData=mesh.create(SolveSettings.problem);
+    MonteCarloR.frequencies=frequencies(:);
+    % initialize the total times
+    romTotalTime = zeros(numel(frequencies),1);
+    romPortTime = zeros(numel(frequencies),1);
+    romFieldTime = zeros(numel(frequencies),1);
+    MonteCarloR.Nrand=Nrand;
+    MonteCarloR.devices=I;
+    MonteCarloR.fields=fields;
+    MonteCarloR.values=zeros(Nrand,numel(I));
+    for m = 1:Nrand
+        sampleTimer = tic;
+        fprintf('[Monte Carlo] Sample %d/%d: preparing parameters.\n',m,Nrand);
+        % define a sample problem
+        problemSample = SolveSettings.problem;
+        % for each of the devices
+        for k = 1:numel(I)
+            % get the
+            value = CenterValues(k) *(1+P(k)*(2*rand-1));
+            MonteCarloR.values(m,k)=value;
+            % put in this new value
+            problemSample.geometry(I(k)).(fields(k)) = value;
+        end
+    
+         % get the total number of parameters
+         parameters = zeros(1,numel(POD.trainingParameters));
+         % loop through the parameters
+        for k = 1:numel(POD.trainingParameters)
+            feature = POD.trainingParameters(k); % struct defining the kth trained parameter
+
+            parameters(k) = ...
+                problemSample.geometry(feature.device).(feature.field);
+        end
+        fprintf('[Monte Carlo] Sample %d/%d: starting DNS (%d frequencies).\n',m,Nrand,numel(frequencies));
+        %solve DNS
+        [uDNS,dnsInfo,cpDNS,cnDNS] = ...
+            online.runDNS(problemSample,frequencies);
+        fprintf('[Monte Carlo] Sample %d/%d: DNS finished in %.1f s.\n',m,Nrand,dnsInfo.totalTime);
+        MonteCarloR.cpDNS{m}=cpDNS;
+        MonteCarloR.cnDNS{m}=cnDNS;
+        MonteCarloR.uDNS{m}=uDNS;
+        MonteCarloR.geometry{m}=problemSample.geometry;
+        % put in the DNS times
+        MonteCarloR.time.dnsSetup(m) = dnsInfo.setupTime;
+        MonteCarloR.time.dnsAssembly(:,m) = dnsInfo.assemblyTime;
+        MonteCarloR.time.dnsSolve(:,m) = dnsInfo.solveTime;
+        MonteCarloR.time.dnsPorts(:,m) = dnsInfo.portTime;
+        MonteCarloR.time.dnsTotal(:,m)=dnsInfo.assemblyTime+dnsInfo.solveTime+dnsInfo.portTime;
+        MonteCarloR.time.dnsSweepTime(m) = dnsInfo.totalTime;
+        fprintf('[ROM] Sample %d/%d: sweeping modes 1:%d at %d frequencies.\n',m,Nrand,nModes,numel(frequencies));
+        nFreq = numel(frequencies);
+        nProbes = numel(problemSample.probes);
+
+        fieldLSE = zeros(nModes,nFreq);
+        finalFields = cell(nFreq,1);
+
+        cpROM = complex(zeros(nProbes,nFreq));
+        cnROM = complex(zeros(nProbes,nFreq));
+
+        assemblyTime = zeros(nFreq,1);
+        solveTime = zeros(nFreq,1);
+        portTime = zeros(nFreq,1);
+        reconstructionTime = zeros(nFreq,1);
+        totalTime = zeros(nFreq,1);
+        
+        parfor j = 1:numel(frequencies)
+            errors = zeros(nModes,1);
+            for nm=1:nModes
+                [a,romInfo,uROM] = online.solveROM( ...
+                    POD,frequencies(j),parameters,nm);
+            errors(nm) = ...
+                    100*norm(uDNS{j}-uROM)/norm(uDNS{j});
+
+                  
+            end
+
+            fieldLSE(:,j) = errors;
+            assemblyTime(j)=romInfo.assemblyTime;
+            solveTime(j) =romInfo.solveTime;
+            portTime(j) = romInfo.portTime;
+            reconstructionTime(j) = romInfo.reconstructionTime;
+         
+            finalFields{j}=uROM;
+            % Port coefficients:
+            cpROM(:,j) = romInfo.cPlus;
+            cnROM(:,j) = romInfo.cMinus;
+            
+   
+            totalTime(j) = romInfo.totalTime;
+            fprintf('[ROM] Sample %d/%d: frequency %d/%d finished (modes 1:%d).\n',m,Nrand,j,numel(frequencies),nModes);
+        end
+        MonteCarloR.fieldLSE(:,:,m)=fieldLSE;
+        MonteCarloR.uROM{m}=finalFields;
+        MonteCarloR.time.romAssembly(:,m) = assemblyTime;
+        MonteCarloR.time.romSolve(:,m) = solveTime;
+        MonteCarloR.time.romPorts(:,m) = portTime;
+        MonteCarloR.time.romReconstruction(:,m) =reconstructionTime;
+        MonteCarloR.time.romTotal(:,m) = totalTime;
+
+
+
+        %MonteCarloR.time.romSweepTime(m)=sum(MonteCarloR.time.romTotal(:,m));
+        MonteCarloR.cpROM{m}=cpROM;
+        MonteCarloR.cnROM{m}=cnROM;
+        fprintf('[Monte Carlo] Sample %d/%d complete in %.1f s; total elapsed %.1f s.\n',m,Nrand,toc(sampleTimer),toc(monteCarloTimer));
+    end
+    fprintf('[Monte Carlo] All %d samples complete in %.1f s.\n',Nrand,toc(monteCarloTimer));
+
+end
+
+
+
+
+
+   
+
